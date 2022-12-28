@@ -4,13 +4,13 @@
   2.在项目中，某个库方法有更改，找到所有使用的地方包括其它 aar 库；
   3.在项目中，代码收敛，比如将所有使用 getExternalFilesDir 方法的地方都替换为一个 工具类方法；
 
-<img src="./lint_method_collector_results.png" width="50%" height="50%"/>
+<img src="lint_method_collector_results.png" width="50%" height="50%"/>
 
 ## 技术流程
 在自定义 lint 中 定义一个 Detector，用于接收 项目和三方库 class 文件扫描。在 Detector 执行过程中，将 class 和 class method 信息收集起来，等执行完成，将收集到的类方法信息与配置文件中的要检查的类方法信息进行匹配，匹配完成后输出 Json 和 Html 格式文件报告，如果有上一个执行结果，将与之 diff 后再输出结果
 
 下面为流程图：
-<img src="./lint_method_collector_des.png" width="50%" height="50%"/>
+<img src="lint_method_collector_des.png" width="50%" height="50%"/>
 
 
 ## 如何使用
