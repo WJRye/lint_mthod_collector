@@ -1,0 +1,23 @@
+apply plugin: 'com.android.library'
+
+android {
+    namespace 'com.wangjiang.lint.library'
+    compileSdkVersion 32
+    defaultConfig {
+        minSdkVersion 19
+        targetSdkVersion 32
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+    lintOptions {
+        checkDependencies true
+    }
+}
+
+dependencies {
+
+    implementation project(':lint-checks')
+    lintPublish project(':lint-checks')
+}

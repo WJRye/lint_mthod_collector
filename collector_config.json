@@ -1,0 +1,63 @@
+{
+  "methods": [
+    {
+      "owner": "android/location/LocationManager",
+      "name": "getLastKnownLocation",
+      "message": "大佬，麻烦请用项目xxx库中xxx类的xxx方法获取",
+      "excludes": [
+        {
+          "caller": "androidx/appcompat/app/TwilightManager",
+          "name": "getLastKnownLocationForProvider"
+        }
+      ]
+    },
+    {
+      "owner": "android/net/wifi/WifiInfo",
+      "name": "getBSSID",
+      "message": "大佬，麻烦请用项目xxx库中xxx类的xxx方法获取"
+    },
+    {
+      "owner": "android/net/wifi/WifiInfo",
+      "name": "getSSID",
+      "message": "大佬，麻烦请用项目xxx库中xxx类的xxx方法获取",
+      "excludes": [
+        {
+          "caller": "org/chromium/net/AndroidNetworkLibrary",
+          "name": "getWifiSSID"
+        },
+        {
+          "caller": "org/chromium/net/NetworkChangeNotifierAutoDetect$WifiManagerDelegate",
+          "name": "getWifiSsid"
+        }
+      ]
+    },
+    {
+      "owner": "android/net/wifi/WifiInfo",
+      "name": "getMacAddress",
+      "message": "大佬，麻烦请用项目xxx库中xxx类的xxx方法获取"
+    },
+    {
+      "owner": "android/telephony/TelephonyManager",
+      "name": "getImei",
+      "message": "大佬，麻烦请用项目xxx库中xxx类的xxx方法获取"
+    },
+    {
+      "owner": "android/telephony/TelephonyManager",
+      "name": "getDeviceId",
+      "message": "大佬，麻烦请用项目xxx库中xxx类的xxx方法获取"
+    },
+    {
+      "owner": "android/content/Context",
+      "name": "getExternalFilesDir",
+      "message": "大佬，麻烦请用项目xxx库中xxx类的xxx方法获取"
+    },
+    {
+      "owner": "android/content/Context",
+      "name": "getExternalFilesDir",
+      "message": "大佬，麻烦请用项目xxx库中xxx类的xxx方法获取"
+    }
+  ],
+  "output": {
+    "type": "single"
+  }
+}
