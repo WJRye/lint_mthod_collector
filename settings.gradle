@@ -1,4 +1,4 @@
-rootProject.name = "lint_mthod_collector"
+rootProject.name = "lint_method_collector"
 include ':app'
 include ':lint-checks'
 include ':lint-library'
