@@ -19,7 +19,7 @@ class JsonResultReporter : ResultReporter {
         dir: File
     ) {
         val list = data.values.map {
-            it.groupBy { it.ownerClassMethodName }
+            it.groupBy { it.ownerClassName }
         }.flatMap { it.values }
 
         val outputStream = FileOutputStream(File(dir, "all.json"))
