@@ -1,6 +1,7 @@
 package com.wangjiang.lint.checks.collector
 
 import com.android.tools.lint.detector.api.*
+import com.intellij.psi.PsiType
 import com.wangjiang.lint.checks.collector.MethodReport
 import org.objectweb.asm.tree.AbstractInsnNode
 import org.objectweb.asm.tree.ClassNode
@@ -28,28 +29,25 @@ class MethodCollectorDetector : Detector(), Detector.ClassScanner {
     private var checkMethodCollector = true
 
     private fun findTargetFile(fileName: String, dir: File): File? {
-        return dir.listFiles { _, name -> fileName == name }
-            ?.takeIf { it.isNotEmpty() }?.get(0)
+        return dir.listFiles { _, name -> fileName == name }?.takeIf { it.isNotEmpty() }?.get(0)
     }
 
     private fun createPrivacyHelper(project: Project): MethodCollectorHelper? {
         if (!project.isAndroidProject) {
-            log("This is not a Android Project: ${project.name}")
+            log("This is not an Android Project: ${project.name}")
             return null
         }
         if (methodCollectorHelper != null) return methodCollectorHelper
 
         var curDir: File? = project.dir
-        val settingGradleFileName = "settings.gradle"
-        while (curDir != null && findTargetFile(settingGradleFileName, curDir) == null) {
+        while (curDir != null && findTargetFile(SETTINGS_GRADLE_NAME, curDir) == null) {
             curDir = curDir.parentFile
         }
         if (curDir == null) {
             log("Can't find Root Project for: ${project.name} ")
             return null
         }
-        val collectorConfigFileName = "collector_config.json"
-        val collectorConfigFile = findTargetFile(collectorConfigFileName, curDir)
+        val collectorConfigFile = findTargetFile(COLLECTOR_CONFIG_NAME, curDir)
         if (collectorConfigFile == null) {
             log("Can't find Collector Config for: ${project.name} ")
             return null
@@ -80,45 +78,148 @@ class MethodCollectorDetector : Detector(), Detector.ClassScanner {
         super.checkInstruction(context, classNode, method, instruction)
         if (checkMethodCollector && instruction is MethodInsnNode) {
             methodCollectorHelper?.match(
-                instruction.owner,
-                instruction.name,
-                classNode.name,
-                method.name
-            )
-                .takeIf { msg -> !msg.isNullOrEmpty() }
-                ?.let { msg ->
-                    logWithFormat(context, classNode, method, instruction)
-                    MethodReport.instance.addReporterModel(MethodReporterModel().apply {
-                        this.ownerClassName = instruction.owner
-                        this.ownerClassMethodName = instruction.name
-                        this.callerClassName = classNode.name
-                        this.callerClassMethodName = method.name
-                        this.callerClassMethodLine = ClassContext.findLineNumber(method)
-                    })
-                    context.report(
-                        ISSUE, context.getLocation(instruction),
-                        msg
-                    )
-                }
+                instruction.owner, instruction.name, classNode.name, method.name
+            ).takeIf { msg -> !msg.isNullOrEmpty() }?.let { msg ->
+                logWithFormat(context, classNode, method, instruction)
+
+                MethodReport.instance.addReporterModel(MethodReporterModel().apply {
+                    this.ownerClassName = instruction.owner
+                    this.ownerClassMethodName =
+                        getOwnerClassMethodParameter(instruction.name, instruction.desc)
+                    this.callerClassName = classNode.name
+                    this.callerClassMethodName =
+                        method.name + getCallerClassMethodParameter(context, classNode, method)
+                    this.callerClassMethodLine = ClassContext.findLineNumber(method)
+                })
+                context.report(
+                    ISSUE, context.getLocation(instruction), msg
+                )
+            }
 
         }
+    }
+
+    /**
+     * 根据Owner Class Method，生成一个完整的方法字符串
+     * @param name 方法名字
+     * @param desc 方法描述（JNI方法描述）
+     */
+    private fun getOwnerClassMethodParameter(name: String, desc: String): String {
+        //根据方法描述，解析方法返回类型和方法参数类型
+        fun getTypeDes(typeDes: String): String {
+            return if (typeDes.length == 1) {
+                when (typeDes[0]) {
+                    'B' -> "byte"
+                    'S' -> "short"
+                    'Z' -> "boolean"
+                    'C' -> "char"
+                    'I' -> "int"
+                    'J' -> "long"
+                    'F' -> "float"
+                    'D' -> "double"
+                    'V' -> "void"
+                    else -> typeDes
+                }
+            } else {
+                if (typeDes.startsWith('[')) {
+                    getTypeDes(typeDes.substring(1)) + "[]"
+                } else {
+                    var endIndex = typeDes.indexOf(';')
+                    if (endIndex == -1) {
+                        endIndex = typeDes.length
+                    }
+                    typeDes.substring(typeDes.indexOf('L') + 1, endIndex).replace('/', '.')
+                }
+            }
+        }
+
+        val sb = StringBuilder()
+        val returnStr = desc.substring(desc.indexOf(')') + 1, desc.length)
+        val returnDesc = getTypeDes(returnStr)
+        sb.append(returnDesc)
+        sb.append(" ")
+        sb.append(name)
+        val paramsStr = desc.substring(1, desc.length - returnStr.length - 1)
+        //添加前括号
+        sb.append(desc[0])
+        paramsStr.split(';').forEach {
+            if (it.startsWith('L')) {
+                sb.append(getTypeDes(it))
+                sb.append(',')
+            } else {
+                var index = 0
+                while (index < it.length) {
+                    var pre = ""
+                    if (it[index] == '[') {
+                        pre = it[index].toString()
+                        ++index
+                    }
+                    val c = it[index]
+                    if (c == 'L') {
+                        sb.append(getTypeDes(pre + it.substring(index, it.length)))
+                        sb.append(',')
+                        sb.append(" ")
+                        break
+                    } else {
+                        sb.append(getTypeDes(pre + c.toString()))
+                        sb.append(',')
+                        sb.append(" ")
+                    }
+                    index++
+                }
+            }
+        }
+        val startIndex = sb.lastIndexOf(',')
+        if (startIndex != -1) sb.delete(
+            startIndex, sb.length
+        )
+        //添加后括号
+        sb.append(desc[desc.length - returnStr.length - 1])
+        return sb.toString()
+    }
+
+    /**
+     * 根据Caller Class Method，生成一个完整的方法字符串
+     * @param context 类上下文
+     * @param classNode 类节点
+     * @param method 方法节点
+     */
+    private fun getCallerClassMethodParameter(
+        context: ClassContext, classNode: ClassNode, method: MethodNode
+    ): String {
+        val sb = StringBuilder()
+        sb.append('(')
+        context.findPsiClass(classNode)?.findMethodsByName(method.name)?.iterator()?.forEach {
+            it.parameters.forEach { jvmParameter ->
+                val type = jvmParameter.type
+                if (type is PsiType) {
+                    sb.append(type.presentableText)
+                }
+                sb.append(" ")
+                sb.append(jvmParameter.name)
+                sb.append(",")
+                sb.append(" ")
+            }
+        }
+        if (sb.length > 2) sb.delete(
+            sb.length - 2, sb.length
+        )
+        sb.append(')')
+        return sb.toString()
     }
 
     /**
      * 打印日志
      */
     private fun logWithFormat(
-        context: ClassContext,
-        classNode: ClassNode,
-        method: MethodNode,
-        instruction: MethodInsnNode
+        context: ClassContext, classNode: ClassNode, method: MethodNode, instruction: MethodInsnNode
     ) {
         log(
             "method collector found owner: ${instruction.owner}#${instruction.name}\tcaller: ${classNode.name}#${method.name}\t${
                 ClassContext.findLineNumber(
                     method
                 )
-            }\t$filePrefix${context.file.path}\t${context.jarFile?.name ?: ""}"
+            }\t$filePrefix${context.file.absolutePath}"
         )
     }
 
@@ -185,14 +286,12 @@ class MethodCollectorDetector : Detector(), Detector.ClassScanner {
             val collectorReportDir = getMethodCollectorReportDir(context)
             if (it.outputSingle()) {
                 MethodReport.instance.reportSingle(
-                    context.mainProject.name,
-                    collectorReportDir
+                    context.mainProject.name, collectorReportDir
                 )
             }
             if (it.outputMulti()) {
                 MethodReport.instance.reportMulti(
-                    context.mainProject.name,
-                    collectorReportDir
+                    context.mainProject.name, collectorReportDir
                 )
             }
             log("Wrote Method Collector report to dir ${filePrefix}${collectorReportDir.path}")
@@ -204,6 +303,8 @@ class MethodCollectorDetector : Detector(), Detector.ClassScanner {
         private const val BUILD_NAME = "build"
         private const val BUILD_REPORTS_NAME = "reports"
         private const val METHOD_COLLECTOR_NAME = "method-collector"
+        private const val SETTINGS_GRADLE_NAME="settings.gradle"
+        private const val COLLECTOR_CONFIG_NAME = "collector_config.json"
 
         val ISSUE = Issue.create(
             "MethodCollector",  //唯一 ID
@@ -212,8 +313,7 @@ class MethodCollectorDetector : Detector(), Detector.ClassScanner {
             Category.CORRECTNESS,  //问题种类（正确性、安全性等）
             6, Severity.WARNING,  //问题严重程度（忽略、警告、错误）
             Implementation( //实现，包括处理实例和作用域
-                MethodCollectorDetector::class.java,
-                Scope.ALL_CLASSES_AND_LIBRARIES
+                MethodCollectorDetector::class.java, Scope.ALL_CLASSES_AND_LIBRARIES
             )
         )
     }
