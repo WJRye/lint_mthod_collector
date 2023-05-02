@@ -3,6 +3,7 @@ package com.wangjiang.lint.checks.collector
 import org.w3c.dom.DOMConfiguration
 import org.w3c.dom.Document
 import org.w3c.dom.Element
+import org.w3c.dom.bootstrap.DOMImplementationRegistry
 import org.w3c.dom.ls.DOMImplementationLS
 import org.w3c.dom.ls.LSOutput
 import org.w3c.dom.ls.LSSerializer
@@ -32,7 +33,7 @@ class HtmlResultReporter : ResultReporter {
         val divElement: Element = htmlDoc.createElement("div")
         val bodyElement = htmlDoc.getElementsByTagName("body").item(0) as Element
         bodyElement.appendChild(divElement)
-        appendChild(htmlDoc, divElement, "h1", "项目 $projectName 方法收集结果")
+        appendChild(htmlDoc, divElement, "h1", "项目 $projectName 方法收集结果\t${getSum(data)}")
         for ((key, value) in data) {
             appendTableElement(htmlDoc, divElement, key, value)
         }
@@ -40,10 +41,21 @@ class HtmlResultReporter : ResultReporter {
     }
 
     /**
+     * 获取扫描结果总数
+     */
+    private fun getSum(data: Map<String, HashSet<MethodReporterModel>>): Int {
+        var count = 0
+        data.values.map { it.size }.forEach {
+            count += it
+        }
+        return count
+    }
+
+    /**
      * 表格标题列表
      */
-    private fun getTabTileList() =
-        arrayListOf<String>("目标所属类", "目标所属类方法", "调用所属类", "调用所属类方法", "调用所属类方法行数")
+    private fun getTabTileList(target: String) =
+        arrayListOf<String>("目标所属类", "目标所属类$target", "调用所属类", "调用所属类方法", "调用所属类方法行数")
 
 
     /**
@@ -55,25 +67,49 @@ class HtmlResultReporter : ResultReporter {
         key: String,
         value: Set<MethodReporterModel>
     ) {
-        appendChild(htmlDoc, divElement, "h2", key)
+        appendChild(htmlDoc, divElement, "h2", "$key\t${value.size}")
         val tableElement = htmlDoc.createElement("table")
-        getTabTileList().forEach {
-            appendChild(htmlDoc, tableElement, "th", it)
+
+        fun addTableElement(
+            sequence: Sequence<MethodReporterModel>,
+            target: String,
+            predicate: (MethodReporterModel) -> Boolean,
+            keySelector: (MethodReporterModel) -> String
+        ) {
+            sequence.filter(predicate).groupBy(keySelector).flatMap { it.value }.toSet()
+                .takeIf { it.isNotEmpty() }?.let { value ->
+                    getTabTileList(target).forEach {
+                        appendChild(htmlDoc, tableElement, "th", it)
+                    }
+                    value.forEach { model ->
+                        val trElement = htmlDoc.createElement("tr")
+                        val tabContent = arrayListOf<String>(
+                            model.ownerClassName,
+                            keySelector.invoke(model),
+                            model.callerClassName,
+                            model.callerClassMethodName,
+                            model.callerClassMethodLine.toString()
+                        )
+                        tabContent.forEach {
+                            appendChild(htmlDoc, trElement, "td", it)
+                        }
+                        tableElement.appendChild(trElement)
+                    }
+
+                }
         }
-        value.groupBy { it.ownerClassMethodName }.flatMap { it.value }.forEach { model ->
-            val trElement = htmlDoc.createElement("tr")
-            val tabContent = arrayListOf<String>(
-                model.ownerClassName,
-                model.ownerClassMethodName,
-                model.callerClassName,
-                model.callerClassMethodName,
-                model.callerClassMethodLine.toString()
-            )
-            tabContent.forEach {
-                appendChild(htmlDoc, trElement, "td", it)
-            }
-            tableElement.appendChild(trElement)
-        }
+
+        addTableElement(
+            value.asSequence(),
+            "属性",
+            { it.ownerClassFieldName.isNotEmpty() },
+            { it.ownerClassFieldName })
+        addTableElement(
+            value.asSequence(),
+            "方法",
+            { it.ownerClassMethodName.isNotEmpty() },
+            { it.ownerClassMethodName })
+
         divElement.appendChild(tableElement)
     }
 
@@ -88,7 +124,7 @@ class HtmlResultReporter : ResultReporter {
             val divElement: Element = htmlDoc.createElement("div")
             val bodyElement = htmlDoc.getElementsByTagName("body").item(0) as Element
             bodyElement.appendChild(divElement)
-            appendChild(htmlDoc, divElement, "h1", "项目 $projectName 方法收集结果")
+            appendChild(htmlDoc, divElement, "h1", "项目 $projectName 方法收集结果\t${getSum(data)}")
 
             appendTableElement(htmlDoc, divElement, key, value)
 
@@ -114,9 +150,11 @@ class HtmlResultReporter : ResultReporter {
         FileNotFoundException::class
     )
     private fun write(document: Document, path: String, filename: String) {
-        val domImplLS: DOMImplementationLS = document.implementation as DOMImplementationLS
+        val registry: DOMImplementationRegistry = DOMImplementationRegistry.newInstance()
+        val domImplLS: DOMImplementationLS =
+            registry.getDOMImplementation("LS") as DOMImplementationLS
         val lsSerializer: LSSerializer = domImplLS.createLSSerializer()
-        val domConfig: DOMConfiguration = lsSerializer.getDomConfig()
+        val domConfig: DOMConfiguration = lsSerializer.domConfig
         domConfig.setParameter("format-pretty-print", true) //if you want it pretty and indented
         val lsOutput: LSOutput = domImplLS.createLSOutput()
         lsOutput.encoding = "UTF-8"
@@ -187,7 +225,7 @@ class HtmlResultReporter : ResultReporter {
         metaElement.setAttribute("http-equiv", "content-type")
         headElement.appendChild(metaElement)
         val titleElement: Element = htmlDoc.createElement("title")
-        if (title != null) titleElement.setTextContent(title)
+        if (title != null) titleElement.textContent = title
         headElement.appendChild(titleElement)
         val bodyElement: Element = htmlDoc.createElement("body")
         htmlElement.appendChild(bodyElement)

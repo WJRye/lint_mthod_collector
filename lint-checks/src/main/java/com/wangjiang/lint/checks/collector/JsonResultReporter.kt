@@ -35,8 +35,7 @@ class JsonResultReporter : ResultReporter {
     ) {
         for ((key, value) in data) {
             val outputStream = FileOutputStream(File(dir, "${key.replace('/', '.')}.json"))
-            outputStream.write(Gson().toJson(value.groupBy { it.ownerClassMethodName }
-                .flatMap { it.value }).toByteArray(Charsets.UTF_8))
+            outputStream.write(Gson().toJson(value).toByteArray(Charsets.UTF_8))
             outputStream.flush()
             outputStream.close()
         }

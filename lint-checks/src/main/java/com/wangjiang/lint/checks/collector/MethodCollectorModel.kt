@@ -5,18 +5,26 @@ class MethodCollectorModel {
     companion object {
         private const val TYPE_SINGLE = "single"
         private const val TYPE_MULTI = "multi"
+        private const val MATCH_PACKAGE = "package"
+        private const val MATCH_CLASS = "class"
     }
 
-    var methods = arrayListOf<MethodModel>()
+    var methods = arrayListOf<TargetModel>()
+    var fields = arrayListOf<TargetModel>()
 
 
     var output: OutputModel = OutputModel()
 
-    class MethodModel {
+    class TargetModel {
         var owner: String = ""
         var name: String = ""
         var message: String = ""
+        var match: String = MATCH_CLASS
         var excludes = arrayListOf<ExcludeModel>()
+
+        fun isMatchPackage() = match == MATCH_PACKAGE
+        fun isMatchClass() = match.isEmpty() || match == MATCH_CLASS
+
         override fun toString(): String {
             return "MethodModel(owner='$owner', name='$name', message='$message', excludes=$excludes)"
         }

@@ -7,6 +7,9 @@ class MethodReporterModel {
     /**目标所属类方法名称*/
     var ownerClassMethodName: String = ""
 
+    /**目标所属类方法名称*/
+    var ownerClassFieldName: String = ""
+
     /**调用所属类名称*/
     var callerClassName: String = ""
 
@@ -24,6 +27,7 @@ class MethodReporterModel {
 
         if (ownerClassName != other.ownerClassName) return false
         if (ownerClassMethodName != other.ownerClassMethodName) return false
+        if (ownerClassFieldName != other.ownerClassFieldName) return false
         if (callerClassName != other.callerClassName) return false
         if (callerClassMethodName != other.callerClassMethodName) return false
         if (callerClassMethodLine != other.callerClassMethodLine) return false
@@ -34,6 +38,7 @@ class MethodReporterModel {
     override fun hashCode(): Int {
         var result = ownerClassName.hashCode()
         result = 31 * result + ownerClassMethodName.hashCode()
+        result = 31 * result + ownerClassFieldName.hashCode()
         result = 31 * result + callerClassName.hashCode()
         result = 31 * result + callerClassMethodName.hashCode()
         result = 31 * result + callerClassMethodLine

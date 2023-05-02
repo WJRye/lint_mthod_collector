@@ -28,6 +28,20 @@
       "message": "大佬，麻烦请用项目xxx库中xxx类的xxx方法获取"
     }
   ],
+  "fields": [
+    {
+      "owner": "android/util",
+      "name": "",
+      "match": "package",
+      "message": "大佬，麻烦请用项目androidx.core.util库中Pair类的first属性获取",
+      "excludes": [
+        {
+          "caller": "com/example/wangjiang/TestJava",
+          "name": "first"
+        }
+      ]
+    }
+  ],
   "output": {
     "type": "single"
   }
