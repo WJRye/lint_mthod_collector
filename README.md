@@ -26,6 +26,8 @@ lint-checks 主要是自定义 lint 规则，lint-library 主要是 lint-checks 
 假设需要检查 app 模块，只需要让 app 模块依赖： `implementation project(':lint-library')`，然后命令行执行：`./gradlew :app:lint`
 当然，你也可以将 `project(':lint-library')` 打包成 arr，上传到仓库或者放在 libs 文件夹下给 app 模块依赖。
 
+或者可以将 `project: lint-library` 单独编译成 arr，这里建议编译 debug arr即可，然后放在 app 模块的 libs目录下，然后添加依赖 `debugImplementation files("libs/lint-library-debug.aar")`。
+
 执行完成，在 app/build/method-collector-debug 目录下会生成结果报告，包含 .json 和 .html 格式报告。
 
 ### 配置文件 collector_config.json
