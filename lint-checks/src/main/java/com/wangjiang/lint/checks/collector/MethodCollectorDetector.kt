@@ -17,35 +17,25 @@ class MethodCollectorDetector : Detector(), Detector.ClassScanner {
     private var methodCollectorHelper: MethodCollectorHelper? = null
 
     private val filePrefix by lazy(LazyThreadSafetyMode.NONE) {
-        if (System.getProperties().getProperty("os.name").lowercase(Locale.ROOT)
+        if (System.getProperties().getProperty("os.name").toLowerCase(Locale.ROOT)
                 .contains("windows")
         ) "" else "file://"
     }
 
     private var checkMethodCollector = true
 
+    private var rootProjectDir: File? = null
+
     private fun findTargetFile(fileName: String, dir: File): File? {
         return dir.listFiles { _, name -> fileName == name }?.takeIf { it.isNotEmpty() }?.get(0)
     }
 
-    private fun createPrivacyHelper(project: Project): MethodCollectorHelper? {
-        if (!project.isAndroidProject) {
-            log("This is not an Android Project: ${project.name}")
-            return null
-        }
+    private fun createMethodCollectorHelper(rootProjectDir: File): MethodCollectorHelper? {
         if (methodCollectorHelper != null) return methodCollectorHelper
-
-        var curDir: File? = project.dir
-        while (curDir != null && findTargetFile(SETTINGS_GRADLE_NAME, curDir) == null) {
-            curDir = curDir.parentFile
-        }
-        if (curDir == null) {
-            log("Can't find Root Project for: ${project.name} ")
-            return null
-        }
+        val curDir = rootProjectDir
         val collectorConfigFile = findTargetFile(COLLECTOR_CONFIG_NAME, curDir)
         if (collectorConfigFile == null) {
-            log("Can't find Collector Config for: ${project.name} ")
+            log("Can't find Collector Config for Project: ${rootProjectDir.path} ")
             return null
         }
         methodCollectorHelper = MethodCollectorHelper(collectorConfigFile.path)
@@ -275,16 +265,36 @@ class MethodCollectorDetector : Detector(), Detector.ClassScanner {
         )
     }
 
+    private fun getRootProjectDir(context: Context): File? {
+        if (this.rootProjectDir != null) return this.rootProjectDir
+        var curDir: File? = context.client.getRootDir()
+        while (curDir != null && findTargetFile(SETTINGS_GRADLE_NAME, curDir) == null) {
+            curDir = curDir.parentFile
+        }
+        if (curDir == null) {
+            log("Can't find Root Project for: ${context.project.name} ")
+        }
+        this.rootProjectDir = curDir
+        return this.rootProjectDir
+    }
+
     override fun beforeCheckRootProject(context: Context) {
         super.beforeCheckRootProject(context)
+        if (!context.project.isAndroidProject) {
+            log("This is not an Android Project: ${context.project.name}")
+            return
+        }
+        log("root project dir:${context.client.getRootDir()?.path}")
         checkMethodCollector = context.isEnabled(ISSUE)
-        log("project ${context.mainProject.name} ${if (checkMethodCollector) "enable" else "disable"} method collector")
+        log("project ${context.project.name} ${if (checkMethodCollector) "enable" else "disable"} method collector")
         if (!checkMethodCollector) {
             return
         }
         MethodReport.instance.clearReporterModels()
-        createPrivacyHelper(context.mainProject)?.let {
-            getBuildReportsDir(context).listFiles(object : FilenameFilter {
+        val rootProjectDir = getRootProjectDir(context) ?: return
+
+        createMethodCollectorHelper(rootProjectDir)?.let {
+            getBuildReportsDir(rootProjectDir).listFiles(object : FilenameFilter {
                 override fun accept(dir: File?, name: String?): Boolean {
                     dir ?: return false
                     name ?: return false
@@ -297,7 +307,8 @@ class MethodCollectorDetector : Detector(), Detector.ClassScanner {
                     log("Delete Lint report $path ${if (ret) "Success" else "Failed"}")
                 }
             }
-            getMethodCollectorReportDir(context).listFiles()?.takeIf { it.isNotEmpty() }
+            getMethodCollectorReportDir(context.project, rootProjectDir).listFiles()
+                ?.takeIf { it.isNotEmpty() }
                 ?.forEach {
                     if (it.exists() && it.isFile && it.name != MethodReport.LAST_JSON_RESULT_FILE_NAME) {
                         val path = it.path
@@ -308,8 +319,8 @@ class MethodCollectorDetector : Detector(), Detector.ClassScanner {
         }
     }
 
-    private fun getBuildReportsDir(context: Context): File {
-        val buildFile = File(context.mainProject.dir, BUILD_NAME)
+    private fun getBuildReportsDir(rootProjectDir: File): File {
+        val buildFile = File(rootProjectDir, BUILD_NAME)
         if (!buildFile.exists()) {
             buildFile.mkdirs()
         }
@@ -320,9 +331,9 @@ class MethodCollectorDetector : Detector(), Detector.ClassScanner {
         return buildReportsFile
     }
 
-    private fun getMethodCollectorReportDir(context: Context): File {
-        val variantName = context.mainProject.buildVariant.name
-        val buildReportsFile = getBuildReportsDir(context)
+    private fun getMethodCollectorReportDir(project: Project, rootProjectDir: File): File {
+        val variantName = project.buildVariant.name
+        val buildReportsFile = getBuildReportsDir(rootProjectDir)
         val collectorReportDir = File(buildReportsFile, "$METHOD_COLLECTOR_NAME-$variantName")
         if (!collectorReportDir.exists()) {
             collectorReportDir.mkdirs()
@@ -335,16 +346,17 @@ class MethodCollectorDetector : Detector(), Detector.ClassScanner {
         if (!checkMethodCollector) {
             return
         }
+        val rootProjectDir = getRootProjectDir(context) ?: return
         methodCollectorHelper?.let {
-            val collectorReportDir = getMethodCollectorReportDir(context)
+            val collectorReportDir = getMethodCollectorReportDir(context.project, rootProjectDir)
             if (it.outputSingle()) {
                 MethodReport.instance.reportSingle(
-                    context.mainProject.name, collectorReportDir
+                    context.project.name, collectorReportDir
                 )
             }
             if (it.outputMulti()) {
                 MethodReport.instance.reportMulti(
-                    context.mainProject.name, collectorReportDir
+                    context.project.name, collectorReportDir
                 )
             }
             log("Wrote Method Collector report to dir ${filePrefix}${collectorReportDir.path}")

@@ -33,7 +33,8 @@ class HtmlResultReporter : ResultReporter {
         val divElement: Element = htmlDoc.createElement("div")
         val bodyElement = htmlDoc.getElementsByTagName("body").item(0) as Element
         bodyElement.appendChild(divElement)
-        appendChild(htmlDoc, divElement, "h1", "项目 $projectName 方法收集结果\t${getSum(data)}")
+        val sum = getSum(data);
+        appendChild(htmlDoc, divElement, "h1", "项目 $projectName 方法收集结果 ${sum.first}处（共计类${sum.second}个，方法${sum.third}个）")
         for ((key, value) in data) {
             appendTableElement(htmlDoc, divElement, key, value)
         }
@@ -43,19 +44,29 @@ class HtmlResultReporter : ResultReporter {
     /**
      * 获取扫描结果总数
      */
-    private fun getSum(data: Map<String, HashSet<MethodReporterModel>>): Int {
-        var count = 0
-        data.values.map { it.size }.forEach {
-            count += it
+    private fun getSum(data: Map<String, HashSet<MethodReporterModel>>): Triple<Int, Int, Int> {
+        var count = 0;
+        var classCount = 0
+        var methodCount = 0
+        val set = hashSetOf<String>()
+        data.forEach {
+            count += it.value.size
+            classCount++
+            set.clear();
+            it.value.forEach {
+                if (it.ownerClassMethodName.isNotEmpty()) set.add(it.ownerClassMethodName)
+                else if (it.ownerClassFieldName.isNotEmpty()) set.add(it.ownerClassFieldName)
+            }
+            methodCount += set.size
         }
-        return count
+        return Triple(count, classCount, methodCount)
     }
 
     /**
      * 表格标题列表
      */
     private fun getTabTileList(target: String) =
-        arrayListOf<String>("目标所属类", "目标所属类$target", "调用所属类", "调用所属类方法", "调用所属类方法行数")
+        arrayListOf<String>("目标所属类", "目标所属类$target", "调用所属类", "调用所属类方法", "行数")
 
 
     /**
