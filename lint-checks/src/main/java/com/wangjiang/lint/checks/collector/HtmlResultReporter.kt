@@ -34,7 +34,7 @@ class HtmlResultReporter : ResultReporter {
         val bodyElement = htmlDoc.getElementsByTagName("body").item(0) as Element
         bodyElement.appendChild(divElement)
         val sum = getSum(data);
-        appendChild(htmlDoc, divElement, "h1", "项目 $projectName 方法收集结果 ${sum.first}处（共计类${sum.second}个，方法${sum.third}个）")
+        appendChild(htmlDoc, divElement, "h1", "项目 $projectName 中共有 ${sum.first} 处调用目标方法，调用的目标类共计 ${sum.second} 个，方法 ${sum.third} 个")
         for ((key, value) in data) {
             appendTableElement(htmlDoc, divElement, key, value)
         }
